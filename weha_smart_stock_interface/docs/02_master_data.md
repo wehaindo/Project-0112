@@ -6,15 +6,24 @@ Use these endpoints to sync the product catalogue and discover available warehou
 
 ## Prerequisites
 
-Obtain a token first. See [Authentication](./01_authentication.md).
+> ⚠️ **Every request requires the `access_token` header.** Omitting it returns:  
+> `{"type": "access_token_not_found", "message": "missing access token in request header"}`  
+> Get a token first via [`GET /api/auth/token`](./01_authentication.md).
 
 ```python
 # Shared setup used in all examples below
 import requests
 
 BASE_URL = "http://localhost:8069"
-TOKEN    = "xK9mT2pL..."   # replace with your token
 
+# Step 1 — authenticate and get token
+auth = requests.get(
+    f"{BASE_URL}/api/auth/token",
+    data={"db": "mydb", "login": "admin", "password": "admin"},
+)
+TOKEN = auth.json()["access_token"]   # store this; valid for 1 hour
+
+# Step 2 — include token in every request header (key must be exactly 'access_token')
 HEADERS = {
     "access_token": TOKEN,
     "Content-Type": "application/json",

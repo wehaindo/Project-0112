@@ -25,7 +25,15 @@ def validate_token(func):
     @functools.wraps(func)
     def wrap(self, *args, **kwargs):
         """."""
-        access_token = request.httprequest.headers.get("access_token")
+        # Check multiple locations for the token (underscore headers may be
+        # stripped by nginx/proxies; also support Authorization: Bearer scheme)
+        headers = request.httprequest.headers
+        access_token = (
+            headers.get("access_token")          # standard: access_token header
+            or headers.get("access-token")        # hyphen variant (proxy-safe)
+            or headers.get("Authorization", "").replace("Bearer ", "").strip() or None
+            or request.httprequest.args.get("access_token")   # query param fallback
+        )
         if not access_token:
             return invalid_response("access_token_not_found", "missing access token in request header", 401)
 

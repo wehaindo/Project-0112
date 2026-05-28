@@ -48,15 +48,22 @@ def _resolve_lot(product, lot_id=None, lot_name=None, rfid_tag=None, company_id=
 
 
 def _move_line_detail(ml):
-    """Serialize a single stock.move.line (detail level)."""
+    """Serialize a single stock.move.line (detail level).
+
+    Odoo 18: stock.move.line has a single `quantity` field.
+      - Before validate: quantity = reserved amount
+      - After validate:  quantity = done amount, picked = True
+    """
     lot = ml.lot_id
+    qty = ml.quantity
+    is_picked = getattr(ml, "picked", False)
     return {
         "move_line_id": ml.id,
         "lot_id":       lot.id   if lot else None,
         "lot_name":     lot.name if lot else "",
         "rfid_tag":     lot.name if lot else "",   # rfid_tag == lot name
-        "qty_reserved": ml.reserved_uom_qty,
-        "qty_done":     ml.qty_done,
+        "qty_reserved": qty if not is_picked else 0.0,
+        "qty_done":     qty if is_picked else 0.0,
     }
 
 
@@ -106,9 +113,10 @@ def _apply_validate_lines(picking, lines):
     If lines is empty, auto-fills qty_done = reserved qty for every move line.
     """
     if not lines:
+        # Auto-fill: mark all move lines as picked (quantity already set by reservation)
         for move in picking.move_ids:
             for ml in move.move_line_ids:
-                ml.qty_done = ml.reserved_uom_qty
+                ml.picked = True
         return
 
     for line_data in lines:
@@ -135,7 +143,8 @@ def _apply_validate_lines(picking, lines):
             _apply_serial_lines(move, lot, qty_done, picking)
         else:
             for ml in move.move_line_ids:
-                ml.qty_done = qty_done
+                ml.quantity = qty_done
+                ml.picked = True
                 if lot:
                     ml.lot_id = lot.id
 
@@ -148,19 +157,21 @@ def _apply_serial_lines(move, lot, qty_done, picking):
     existing = move.move_line_ids
     if existing:
         ml = existing[0]
-        ml.qty_done = 1
+        ml.quantity = 1
+        ml.picked = True
         if lot:
             ml.lot_id = lot.id
     else:
         request.env["stock.move.line"].sudo().create({
-            "move_id":         move.id,
-            "picking_id":      picking.id,
-            "product_id":      move.product_id.id,
-            "product_uom_id":  move.product_uom.id,
-            "location_id":     move.location_id.id,
+            "move_id":          move.id,
+            "picking_id":       picking.id,
+            "product_id":       move.product_id.id,
+            "product_uom_id":   move.product_uom.id,
+            "location_id":      move.location_id.id,
             "location_dest_id": move.location_dest_id.id,
-            "lot_id":          lot.id if lot else False,
-            "qty_done":        1,
+            "lot_id":           lot.id if lot else False,
+            "quantity":         1,
+            "picked":           True,
         })
 
 
