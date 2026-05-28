@@ -202,7 +202,7 @@ class Users(models.Model):
         compute="_compute_active_token_count"
     )
 
-    @api.depends('token_ids', 'token_ids.is_active', 'token_ids.expires')
+    @api.depends('token_ids')
     def _compute_active_token_count(self):
         """Compute number of active, non-expired tokens."""
         for user in self:
